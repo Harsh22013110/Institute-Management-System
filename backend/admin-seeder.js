@@ -6,8 +6,23 @@ const seedData = async () => {
   try {
     await connectToMongo();
 
-    // Clear existing admin data
-    await adminDetails.deleteMany({});
+    const shouldReset = process.argv.includes("--reset");
+
+    if (shouldReset) {
+      // Clear existing admin data only if --reset flag is provided
+      await adminDetails.deleteMany({});
+      console.log("Existing admin data cleared (--reset flag provided)");
+    } else {
+      // Check if admin already exists
+      const existingAdmin = await adminDetails.findOne({
+        email: "admin@gmail.com",
+      });
+      if (existingAdmin) {
+        console.log("Admin already exists. Use --reset flag to clear and reseed.");
+        await mongoose.connection.close();
+        process.exit(0);
+      }
+    }
 
     const password = "admin123";
     const employeeId = 123456;

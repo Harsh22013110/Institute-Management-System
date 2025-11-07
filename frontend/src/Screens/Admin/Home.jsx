@@ -7,6 +7,7 @@ import Faculty from "./Faculty";
 import Subjects from "./Subject";
 import Admin from "./Admin";
 import Branch from "./Branch";
+import Classroom from "./Classroom";
 import { useDispatch } from "react-redux";
 import { setUserData } from "../../redux/actions";
 import axiosWrapper from "../../utils/AxiosWrapper";
@@ -19,6 +20,7 @@ const MENU_ITEMS = [
   { id: "student", label: "Student", component: Student },
   { id: "faculty", label: "Faculty", component: Faculty },
   { id: "branch", label: "Branch", component: Branch },
+  { id: "classroom", label: "Classroom", component: Classroom },
   { id: "notice", label: "Notice", component: Notice },
   { id: "exam", label: "Exam", component: Exam },
   { id: "subjects", label: "Subjects", component: Subjects },

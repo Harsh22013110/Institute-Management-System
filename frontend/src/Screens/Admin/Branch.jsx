@@ -247,7 +247,7 @@ const Branch = () => {
                     <td className="py-4 px-6">{item.name}</td>
                     <td className="py-4 px-6">{item.branchId}</td>
                     <td className="py-4 px-6">
-                      {new Date(item.createdAt).toLocaleDateString()}
+                      {new Date(item.createdAt).toLocaleDateString("en-GB")}
                     </td>
                     <td className="py-4 px-6 text-center flex justify-center gap-4">
                       <CustomButton

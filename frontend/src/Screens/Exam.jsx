@@ -219,7 +219,7 @@ const Exam = () => {
                   <tr key={index} className="border-b hover:bg-blue-50">
                     <td className="py-4 px-6">{item.name}</td>
                     <td className="py-4 px-6">
-                      {new Date(item.date).toLocaleDateString()}
+                      {new Date(item.date).toLocaleDateString("en-GB")}
                     </td>
                     <td className="py-4 px-6">{item.semester}</td>
                     <td className="py-4 px-6">

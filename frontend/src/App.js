@@ -8,6 +8,7 @@ import FacultyHome from "./Screens/Faculty/Home";
 import AdminHome from "./Screens/Admin/Home";
 import ForgetPassword from "./Screens/ForgetPassword";
 import UpdatePassword from "./Screens/UpdatePassword";
+import ScanRoom from "./Screens/ScanRoom";
 
 const App = () => {
   return (
@@ -21,6 +22,7 @@ const App = () => {
               path="/:type/update-password/:resetId"
               element={<UpdatePassword />}
             />
+            <Route path="/scan/room" element={<ScanRoom />} />
             <Route path="student" element={<StudentHome />} />
             <Route path="faculty" element={<FacultyHome />} />
             <Route path="admin" element={<AdminHome />} />

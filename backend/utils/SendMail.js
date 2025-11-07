@@ -17,7 +17,7 @@ const sendResetMail = async (email, resetToken, type) => {
       html: `
                 <h2>Password Reset</h2>
                 <p>You requested for a password reset. Click the link below to reset your password. This link is valid for 10 minutes.</p>
-                <a href="${process.env.FRONTEND_API_LINK}/${type}/update-password/${resetToken}" target="_blank">Reset Password</a>
+                <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/${type}/update-password/${resetToken}" target="_blank">Reset Password</a>
                 <p>If you did not request this, please ignore this email.</p>
             `,
     };

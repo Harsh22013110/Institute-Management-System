@@ -309,7 +309,7 @@ const StudentFinder = () => {
                     </p>
                     <p>
                       <span className="font-medium">Date of Birth:</span>{" "}
-                      {new Date(selectedStudent.dob).toLocaleDateString()}
+                      {new Date(selectedStudent.dob).toLocaleDateString("en-GB")}
                     </p>
                     <p>
                       <span className="font-medium">Blood Group:</span>{" "}

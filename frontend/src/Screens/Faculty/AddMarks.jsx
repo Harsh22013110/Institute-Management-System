@@ -440,7 +440,7 @@ const AddMarks = () => {
                   <span className="text-sm text-gray-500">Date:</span>
                   <p className="text-gray-800">
                     {selectedExam?.date
-                      ? new Date(selectedExam.date).toLocaleDateString()
+                      ? new Date(selectedExam.date).toLocaleDateString("en-GB")
                       : "Not Selected"}
                   </p>
                 </div>

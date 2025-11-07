@@ -114,30 +114,74 @@ const Login = () => {
     }
 
     try {
+      // axiosWrapper baseURL already includes /api, so we just need the endpoint
       const response = await axiosWrapper.post(
         `/${selected.toLowerCase()}/login`,
-        formData,
-        {
-          headers: { "Content-Type": "application/json" },
-        }
+        formData
       );
 
-      const { token } = response.data.data;
-      localStorage.setItem("userToken", token);
-      localStorage.setItem("userType", selected);
-      dispatch(setUserToken(token));
-      navigate(`/${selected.toLowerCase()}`);
+      if (response.data.success && response.data.data) {
+        const { token } = response.data.data;
+        if (token) {
+          localStorage.setItem("userToken", token);
+          localStorage.setItem("userType", selected);
+          dispatch(setUserToken(token));
+          
+          // Check for returnUrl and redirect there, otherwise go to default route
+          const returnUrl = localStorage.getItem("returnUrl");
+          if (returnUrl) {
+            localStorage.removeItem("returnUrl");
+            navigate(returnUrl);
+          } else {
+            navigate(`/${selected.toLowerCase()}`);
+          }
+        } else {
+          toast.error("Token not received from server");
+        }
+      } else {
+        toast.error(response.data.message || "Login failed");
+      }
     } catch (error) {
       toast.dismiss();
-      console.error(error);
-      toast.error(error.response?.data?.message || "Login failed");
+      console.error("Login error:", error);
+      
+      let errorMessage = "Login failed. Please check your credentials.";
+      
+      if (!error.response) {
+        // Network error - no response from server
+        if (error.code === "ECONNABORTED") {
+          errorMessage = "Request timeout. Please check if the server is running.";
+        } else if (error.message === "Network Error") {
+          errorMessage = "Network error. Please check:\n1. Backend server is running on port 4000\n2. CORS is configured correctly\n3. API URL is correct";
+        } else {
+          errorMessage = `Network error: ${error.message}. Please check if the backend server is running.`;
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 404) {
+        errorMessage = "Login endpoint not found. Please check the API configuration.";
+      } else if (error.response?.status >= 500) {
+        errorMessage = "Server error. Please try again later.";
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
   useEffect(() => {
     const userToken = localStorage.getItem("userToken");
     if (userToken) {
-      navigate(`/${localStorage.getItem("userType").toLowerCase()}`);
+      // Check for returnUrl first, otherwise go to default route
+      const returnUrl = localStorage.getItem("returnUrl");
+      if (returnUrl) {
+        localStorage.removeItem("returnUrl");
+        navigate(returnUrl);
+      } else {
+        const userType = localStorage.getItem("userType");
+        if (userType) {
+          navigate(`/${userType.toLowerCase()}`);
+        }
+      }
     }
   }, [navigate]);
 
