@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import axiosWrapper from "../../utils/AxiosWrapper";
 import DeleteConfirm from "../../components/DeleteConfirm";
 import CustomButton from "../../components/CustomButton";
+import { mediaUrl } from "../../lib/media";
 
 const AddTimetableModal = ({
   isOpen,
@@ -67,7 +68,7 @@ const AddTimetableModal = ({
               <option value="">Select Branch</option>
               {branches?.map((b) => (
                 <option key={b._id} value={b._id}>
-                  {b.name}
+                  {b?.name || "Unknown"}
                 </option>
               ))}
             </select>
@@ -282,14 +283,14 @@ const Timetable = () => {
                 <td className="py-4 px-6">
                   <a
                     className="text-xl"
-                    href={process.env.REACT_APP_MEDIA_LINK + "/" + item.link}
+                    href={mediaUrl(item.link)}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     <MdLink />
                   </a>
                 </td>
-                <td className="py-4 px-6">{item.branch.name}</td>
+                <td className="py-4 px-6">{item.branch?.name || "N/A"}</td>
                 <td className="py-4 px-6">{item.semester}</td>
                 <td className="py-4 px-6">
                   {new Date(item.createdAt).toLocaleDateString("en-GB")}

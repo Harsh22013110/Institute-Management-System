@@ -26,10 +26,10 @@ const loginFacultyController = async (req, res) => {
     // Set cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // true only in HTTPS
       sameSite: "lax",
+      secure: false,
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 604800000, // 7 days
     });
 
     return ApiResponse.success({ token }, "Login successful").send(res);

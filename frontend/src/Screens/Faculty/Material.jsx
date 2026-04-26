@@ -9,6 +9,8 @@ import DeleteConfirm from "../../components/DeleteConfirm";
 import CustomButton from "../../components/CustomButton";
 import { MdLink } from "react-icons/md";
 import { IoMdAdd } from "react-icons/io";
+import { mediaUrl } from "../../lib/media";
+
 const Material = () => {
   const [materials, setMaterials] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -203,9 +205,9 @@ const Material = () => {
     setEditingMaterial(material);
     setFormData({
       title: material.title,
-      subject: material.subject._id,
+      subject: material.subject?._id || "",
       semester: material.semester,
-      branch: material.branch._id,
+      branch: material.branch?._id || "",
       type: material.type,
     });
     setShowModal(true);
@@ -344,18 +346,17 @@ const Material = () => {
                     <CustomButton
                       variant="primary"
                       onClick={() => {
-                        window.open(
-                          `${process.env.REACT_APP_MEDIA_LINK}/${material.file}`
-                        );
+                        const fileUrl = mediaUrl(material.file);
+                        window.open(fileUrl, "_blank", "noopener,noreferrer");
                       }}
                     >
                       <MdLink className="text-xl" />
                     </CustomButton>
                   </td>
                   <td className="py-4 px-6">{material.title}</td>
-                  <td className="py-4 px-6">{material.subject.name}</td>
+                  <td className="py-4 px-6">{material.subject?.name || "N/A"}</td>
                   <td className="py-4 px-6">{material.semester}</td>
-                  <td className="py-4 px-6">{material.branch.name}</td>
+                  <td className="py-4 px-6">{material.branch?.name || "N/A"}</td>
                   <td className="py-4 px-6 capitalize">{material.type}</td>
                   <td className="py-4 px-6">
                     <div className="flex gap-4">

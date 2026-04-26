@@ -8,6 +8,7 @@ import axiosWrapper from "../../utils/AxiosWrapper";
 import CustomButton from "../../components/CustomButton";
 import NoData from "../../components/NoData";
 import { CgDanger } from "react-icons/cg";
+import { mediaUrl } from "../../lib/media";
 
 const Student = () => {
   const [searchParams, setSearchParams] = useState({
@@ -160,6 +161,10 @@ const Student = () => {
 
       const formDataToSend = new FormData();
       for (const key in formData) {
+        // Skip profile field when uploading a new file (backend uses req.file.filename instead)
+        if (key === "profile" && file) {
+          continue;
+        }
         if (key === "emergencyContact") {
           for (const subKey in formData.emergencyContact) {
             formDataToSend.append(
@@ -203,6 +208,10 @@ const Student = () => {
           );
         } else {
           toast.success(response.data.message);
+          // Refresh student list if we have search results
+          if (hasSearched) {
+            searchStudents({ preventDefault: () => {} });
+          }
         }
         resetForm();
       } else {
@@ -246,6 +255,7 @@ const Student = () => {
     setSelectedStudentId(student._id);
     setIsEditing(true);
     setShowAddForm(true);
+    setFile(null); // Reset file input when editing
   };
 
   const confirmDelete = async () => {
@@ -436,7 +446,7 @@ const Student = () => {
                       <tr key={student._id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 border-b">
                           <img
-                            src={`${process.env.REACT_APP_MEDIA_LINK}/${student.profile}`}
+                            src={mediaUrl(student.profile)}
                             alt={`${student.firstName}'s profile`}
                             className="w-12 h-12 object-cover rounded-full"
                             onError={(e) => {
@@ -679,6 +689,7 @@ const Student = () => {
                     Profile Photo
                   </label>
                   <input
+                    key={selectedStudentId || "new"} // Reset input when editing different students
                     type="file"
                     onChange={(e) => setFile(e.target.files[0])}
                     className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

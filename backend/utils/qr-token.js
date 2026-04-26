@@ -2,12 +2,12 @@ const jwt = require("jsonwebtoken");
 
 /**
  * Generate a JWT token for room QR code
- * @param {String} roomId - Room ID
+ * @param {Number} roomNumber - Room number (e.g., 401)
  * @returns {String} JWT token
  */
-const generateRoomQRToken = (roomId) => {
+const generateRoomQRToken = (roomNumber) => {
   const payload = {
-    roomId,
+    roomId: typeof roomNumber === "number" ? roomNumber : parseInt(roomNumber, 10),
     type: "room",
     iat: Math.floor(Date.now() / 1000),
   };
@@ -20,10 +20,10 @@ const generateRoomQRToken = (roomId) => {
 /**
  * Verify and decode room QR token
  * @param {String} token - JWT token
- * @param {String} expectedRoomId - Expected room ID to validate against
+ * @param {Number|String} expectedRoomNumber - Expected room number to validate against
  * @returns {Object|null} Decoded token or null if invalid
  */
-const verifyRoomQRToken = (token, expectedRoomId) => {
+const verifyRoomQRToken = (token, expectedRoomNumber) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
@@ -32,8 +32,16 @@ const verifyRoomQRToken = (token, expectedRoomId) => {
       return null;
     }
 
-    // Validate room ID matches
-    if (decoded.roomId !== expectedRoomId) {
+    // Convert expectedRoomNumber to Number for comparison
+    const expectedNum = typeof expectedRoomNumber === "number" 
+      ? expectedRoomNumber 
+      : parseInt(expectedRoomNumber, 10);
+    const tokenRoomNum = typeof decoded.roomId === "number" 
+      ? decoded.roomId 
+      : parseInt(decoded.roomId, 10);
+
+    // Validate room number matches
+    if (tokenRoomNum !== expectedNum) {
       return null;
     }
 

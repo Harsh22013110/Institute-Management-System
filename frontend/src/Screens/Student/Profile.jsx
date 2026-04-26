@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import CustomButton from "../../components/CustomButton";
 import UpdatePasswordLoggedIn from "../../components/UpdatePasswordLoggedIn";
+import { mediaUrl } from "../../lib/media";
 
 const Profile = ({ profileData }) => {
   const [showPasswordUpdate, setShowPasswordUpdate] = useState(false);
@@ -20,7 +21,7 @@ const Profile = ({ profileData }) => {
       <div className="flex items-center gap-8 mb-12 border-b pb-8 justify-between">
         <div className="flex items-center gap-8">
           <img
-            src={`${process.env.REACT_APP_MEDIA_LINK}/${profileData.profile}`}
+            src={mediaUrl(profileData.profile)}
             alt="Profile"
             className="w-40 h-40 rounded-full object-cover ring-4 ring-blue-500 ring-offset-4"
           />
@@ -32,7 +33,7 @@ const Profile = ({ profileData }) => {
               {profileData.enrollmentNo}
             </p>
             <p className="text-lg text-blue-600 font-medium">
-              {profileData.branchId.name}
+              {profileData.branchId?.name || "Branch not assigned"}
             </p>
           </div>
         </div>
@@ -137,7 +138,7 @@ const Profile = ({ profileData }) => {
             <div>
               <label className="text-sm font-medium text-gray-500">Name</label>
               <p className="text-gray-900">
-                {profileData.emergencyContact.name}
+                {profileData.emergencyContact?.name || "Not provided"}
               </p>
             </div>
             <div>
@@ -145,13 +146,13 @@ const Profile = ({ profileData }) => {
                 Relationship
               </label>
               <p className="text-gray-900">
-                {profileData.emergencyContact.relationship}
+                {profileData.emergencyContact?.relationship || "Not provided"}
               </p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Phone</label>
               <p className="text-gray-900">
-                {profileData.emergencyContact.phone}
+                {profileData.emergencyContact?.phone || "Not provided"}
               </p>
             </div>
           </div>

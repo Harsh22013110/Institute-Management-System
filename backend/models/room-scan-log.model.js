@@ -3,13 +3,7 @@ const mongoose = require("mongoose");
 const RoomScanLog = new mongoose.Schema(
   {
     roomId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Classroom",
-      required: true,
-      index: true,
-    },
-    roomNumber: {
-      type: String,
+      type: Number,
       required: true,
       index: true,
     },

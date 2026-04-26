@@ -4,6 +4,8 @@ const bcrypt = require("bcryptjs");
 const ApiResponse = require("../../utils/ApiResponse");
 const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
+const fs = require("fs");
+const path = require("path");
 
 const loginStudentController = async (req, res) => {
   try {
@@ -28,10 +30,10 @@ const loginStudentController = async (req, res) => {
     // Set cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // true only in HTTPS
       sameSite: "lax",
+      secure: false,
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 604800000, // 7 days
     });
 
     return ApiResponse.success({ token }, "Login successful").send(res);
@@ -168,7 +170,22 @@ const updateDetailsController = async (req, res) => {
       updateData.password = await bcrypt.hash(password, salt);
     }
 
+    // Get the current student to check for old profile photo
+    const currentStudent = await studentDetails.findById(req.params.id);
+    
     if (req.file) {
+      // Delete old profile photo if it exists
+      if (currentStudent && currentStudent.profile) {
+        const oldFilePath = path.join(__dirname, "../../media", currentStudent.profile);
+        try {
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        } catch (error) {
+          console.error("Error deleting old profile photo:", error);
+          // Continue with update even if old file deletion fails
+        }
+      }
       updateData.profile = req.file.filename;
     }
 

@@ -19,11 +19,12 @@ const getClassroomController = async (req, res, next) => {
     if (includeOccupancy === "true") {
       const { computeMultipleRoomOccupancy } = require("../utils/occupancy");
       const now = new Date();
-      const roomIds = classrooms.map((r) => r._id);
-      const occupancyMap = await computeMultipleRoomOccupancy(roomIds, now);
+      const roomNumbers = classrooms.map((r) => parseInt(r.roomNumber, 10));
+      const occupancyMap = await computeMultipleRoomOccupancy(roomNumbers, now);
 
       const classroomsWithOccupancy = classrooms.map((room) => {
-        const occupancy = occupancyMap.get(room._id.toString()) || {
+        const roomNum = parseInt(room.roomNumber, 10);
+        const occupancy = occupancyMap.get(roomNum) || {
           status: "Available",
           occupiedUntil: null,
         };

@@ -136,63 +136,131 @@ cd backend
 node classroom-seeder.js
 ```
 
-## QR Code-Based Classroom Occupancy
+## QR Occupancy – Setup & Use
 
-The system includes a QR code-based classroom occupancy tracking feature:
+### Environment Variables
 
-### Features
-- **QR Code Scanning**: Each room (401-412) has a unique signed QR code
-- **1-Hour Occupancy**: Scanning marks a room as occupied for exactly 1 hour
-- **Auto-Extension**: Re-scanning within the hour extends occupancy by another hour
-- **Real-Time Updates**: Live status updates via Server-Sent Events (SSE)
-- **Live Countdown**: Shows remaining time until occupancy expires
-- **Force Clear**: Admins can manually clear room occupancy
+**Backend (`backend/.env`):**
+```env
+PORT=4000
+FRONTEND_URL=http://localhost:3000
+MONGODB_URI=mongodb://127.0.0.1:27017/College-Management-System
+JWT_SECRET=THISISSECRET
+```
+
+**Frontend (`frontend/.env`):**
+```env
+REACT_APP_APILINK=http://localhost:4000/api
+REACT_APP_MEDIALINK=http://localhost:4000/media
+```
+
+### Ports & Start Commands
+
+- **Frontend**: http://localhost:3000 (CRA)
+- **Backend**: http://localhost:4000 (Express + Mongo)
+
+**Start Commands:**
+```bash
+# Backend
+cd backend
+npm install
+npm run dev
+
+# Frontend
+cd frontend
+npm install
+npm start
+```
+
+### Seeding Classrooms
+
+Create classrooms 401-412:
+```bash
+cd backend
+node classroom-seeder.js
+```
+
+To reset and reseed (destructive):
+```bash
+node classroom-seeder.js --reset
+```
+
+### How It Works
+
+#### 1-Hour Session System
+
+- **Initial Scan**: Teacher scans QR → confirms → room becomes **Occupied** for **EXACTLY 1 hour**
+- **Auto-Return**: After 1 hour, room automatically returns to **Available** (no manual action needed)
+- **Re-Scan Extension**: If teacher scans again within the hour, occupancy extends by another hour from the current time (or keeps the later expiry if already extended)
+
+#### Occupancy Logic
+
+- **No boolean stored**: Occupancy is computed from `room_scan_logs` collection
+- A room is **Occupied** if a log exists where `expiresAt > now` (UTC)
+- Re-scanning extends `expiresAt` to `max(existing, now+3600s)`
 
 ### Downloading QR Codes
 
-1. **Via Admin Dashboard** (Recommended):
-   - Login as admin
-   - Navigate to Admin → Classroom
-   - Click "Download All QR Codes" button
-   - This downloads a ZIP file (`room-qrs-401-412.zip`) with QR codes for rooms 401-412
-   - **Note:** You must be logged in as admin. The download uses cookies for authentication.
+**Via Admin Dashboard:**
+1. Login as admin
+2. Navigate to **Admin → Classroom**
+3. Click **"Download All QR Codes"** button
+4. Downloads `room-qrs.zip` with QR codes for rooms 401-412
+5. **Note**: Requires admin login (uses cookie authentication)
 
-2. **Via Script**:
-   ```bash
-   cd backend
-   # Set ADMIN_TOKEN in .env or export it
-   export ADMIN_TOKEN=your_admin_jwt_token
-   node scripts/generate-room-qrs.js
-   ```
-   QR codes will be saved to `backend/exports/room-qrs/`
+**Single QR Code:**
+- `GET /api/rooms/qr/401` (admin only) - Returns PNG image
 
-### Using QR Codes
+### Printing QR Codes
 
-1. Print the QR codes and post them in respective classrooms
-2. Teachers scan the QR code with their phone
-3. If not logged in, they're redirected to login
-4. After login, they see the room details
-5. Click "Confirm Occupy for 1 Hour"
-6. Room is marked as occupied for 1 hour
-7. Status updates in real-time on the admin dashboard
+1. Download the ZIP file from admin dashboard
+2. Extract the PNG files (`room-401.png`, `room-402.png`, etc.)
+3. Print each QR code and post it in the corresponding classroom
+4. Each QR code is unique and signed with a JWT token
 
-### Viewing Occupancy Status
+### Using QR Codes (Teacher Flow)
 
-- Navigate to Admin → Classroom
-- View the "Occupancy Status" column:
-  - **Available** (green) - Room is free
-  - **Occupied** (red) - Room is occupied with countdown timer (MM:SS)
-- Status updates automatically via SSE
+1. Teacher scans QR code with phone camera
+2. Browser opens: `http://localhost:3000/scan/room?roomId=401&token=<jwt>`
+3. If not logged in → redirects to login → then returns to scan page
+4. Teacher sees room details (number, capacity, floor)
+5. Clicks **"Confirm Occupy for 1 Hour"**
+6. Room immediately becomes **Occupied** for 1 hour
+7. Success message shows expiry time and live countdown
+8. Re-scanning extends by another hour
+
+### Admin Dashboard Features
+
+**Real-Time Status:**
+- Navigate to **Admin → Classroom**
+- View **Occupancy Status** column:
+  - **Available** (green chip) - Room is free
+  - **Occupied** (red chip) - Room is occupied with live countdown (MM:SS format)
+- Status updates **instantly** via Server-Sent Events (SSE)
+- Countdown updates every 1 second
+
+**Force Clear:**
+- Click **"Force Clear Occupancy"** (admin only)
+- Immediately sets room to **Available**
+- Broadcasts update to all connected clients via SSE
 
 ### API Endpoints
 
-- `GET /api/health` - Health check endpoint
-- `POST /api/rooms/:roomId/scan?token=<jwt>` - Scan a room QR code
-- `GET /api/classrooms` - Get all classrooms with occupancy status
-- `DELETE /api/rooms/:roomId/occupancy` - Force clear occupancy (admin only)
-- `GET /api/rooms/qr/:roomId` - Generate QR code PNG for a room (admin only)
-- `GET /api/rooms/qr/bulk?from=401&to=412` - Download ZIP of all QR codes (admin only)
-- `GET /api/events` - SSE endpoint for real-time room status updates
+- `GET /api/health` → `{ ok: true }`
+- `GET /api/classrooms` - Get all classrooms with computed occupancy status
+- `POST /api/rooms/:roomId/scan?token=<jwt>` - Scan room QR (requireAuth)
+- `DELETE /api/rooms/:roomId/occupancy` - Force clear occupancy (requireAdmin)
+- `GET /api/rooms/qr/:roomId` - Generate QR PNG (requireAdmin)
+- `GET /api/rooms/qr/bulk?from=401&to=412` - Download ZIP (requireAdmin)
+- `GET /api/events` - SSE endpoint for real-time updates (requireAuth)
+
+### Technical Details
+
+- **Authentication**: Cookie-based (httpOnly, sameSite: "lax", secure: false)
+- **QR Token**: JWT signed with `roomNumber` (e.g., 401, 402)
+- **Occupancy Storage**: `room_scan_logs` collection with `roomId` (Number), `expiresAt` (Date)
+- **Real-Time**: Server-Sent Events (SSE) for live status updates
+- **Frontend**: Shared `api.js` axios client with `withCredentials: true`
 
 ## Project Structure
 

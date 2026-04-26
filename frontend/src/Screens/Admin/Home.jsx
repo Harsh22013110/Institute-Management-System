@@ -13,6 +13,7 @@ import { setUserData } from "../../redux/actions";
 import axiosWrapper from "../../utils/AxiosWrapper";
 import Profile from "./Profile";
 import Exam from "../Exam";
+import Attendance from "./Attendance";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const MENU_ITEMS = [
@@ -23,6 +24,7 @@ const MENU_ITEMS = [
   { id: "classroom", label: "Classroom", component: Classroom },
   { id: "notice", label: "Notice", component: Notice },
   { id: "exam", label: "Exam", component: Exam },
+  { id: "attendance", label: "Attendance", component: Attendance },
   { id: "subjects", label: "Subjects", component: Subjects },
   { id: "admin", label: "Admin", component: Admin },
 ];

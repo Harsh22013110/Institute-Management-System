@@ -6,6 +6,7 @@ import axiosWrapper from "../../utils/AxiosWrapper";
 import toast from "react-hot-toast";
 import CustomButton from "../../components/CustomButton";
 import Loading from "../../components/Loading";
+import { mediaUrl } from "../../lib/media";
 
 const Material = () => {
   const [materials, setMaterials] = useState([]);
@@ -28,6 +29,10 @@ const Material = () => {
   const fetchSubjects = async () => {
     try {
       setDataLoading(true);
+      if (!userData?.semester || !userData?.branchId?._id) {
+        setSubjects([]);
+        return;
+      }
       const response = await axiosWrapper.get(
         `/subject?semester=${userData.semester}&branch=${userData.branchId._id}`,
         {
@@ -54,6 +59,10 @@ const Material = () => {
   const fetchMaterials = async () => {
     try {
       setDataLoading(true);
+      if (!userData?.semester || !userData?.branchId?._id) {
+        setMaterials([]);
+        return;
+      }
       const queryParams = new URLSearchParams({
         semester: userData.semester,
         branch: userData.branchId._id,
@@ -158,16 +167,15 @@ const Material = () => {
                       <CustomButton
                         variant="primary"
                         onClick={() => {
-                          window.open(
-                            `${process.env.REACT_APP_MEDIA_LINK}/${material.file}`
-                          );
+                          const fileUrl = mediaUrl(material.file);
+                          window.open(fileUrl, "_blank", "noopener,noreferrer");
                         }}
                       >
                         <MdLink className="text-xl" />
                       </CustomButton>
                     </td>
                     <td className="py-4 px-6">{material.title}</td>
-                    <td className="py-4 px-6">{material.subject.name}</td>
+                    <td className="py-4 px-6">{material.subject?.name || "N/A"}</td>
                     <td className="py-4 px-6 capitalize">{material.type}</td>
                   </tr>
                 ))

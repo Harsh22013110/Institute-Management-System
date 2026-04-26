@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { toast } from "react-hot-toast";
 import { MdOutlineDelete, MdEdit, MdMoreVert } from "react-icons/md";
 import { IoMdAdd, IoMdClose } from "react-icons/io";
+import api from "../../api";
 import axiosWrapper from "../../utils/AxiosWrapper";
 import Heading from "../../components/Heading";
 import DeleteConfirm from "../../components/DeleteConfirm";
@@ -26,12 +27,25 @@ const Classroom = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isClearOccupancyOpen, setIsClearOccupancyOpen] = useState(false);
   const [selectedClassroomId, setSelectedClassroomId] = useState(null);
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState(null); // For occupancy operations
   const [isEditing, setIsEditing] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [processLoading, setProcessLoading] = useState(false);
   const [countdowns, setCountdowns] = useState({});
+  const shownErrors = useRef(new Set());
   const eventSourceRef = useRef(null);
   const countdownIntervalRef = useRef(null);
+
+  // Error deduplication helper - only toast once per error key
+  const toastOnce = (key, msg) => {
+    if (!shownErrors.current.has(key)) {
+      shownErrors.current.add(key);
+      toast.error(msg);
+    } else {
+      // Log to console instead of showing toast again
+      console.warn(`[Suppressed duplicate error] ${key}: ${msg}`);
+    }
+  };
 
   useEffect(() => {
     getClassroomHandler();
@@ -50,14 +64,16 @@ const Classroom = () => {
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const connectSSE = () => {
     // Get base URL from environment
-    const apiLink = process.env.REACT_APP_APILINK || "http://localhost:4000/api";
+    const apiLink = process.env.REACT_APP_APILINK || "http://10.148.86.146:4000/api";
     const baseUrl = apiLink.replace("/api", "");
+    // EventSource doesn't support withCredentials, but cookies are sent automatically for same-origin
+    // For cross-origin, we may need to pass token in query (but cookies should work with CORS)
     const token = localStorage.getItem("userToken");
-    // EventSource automatically sends cookies if same origin
     const eventSource = new EventSource(`${baseUrl}/api/events${token ? `?token=${token}` : ""}`);
 
     eventSource.onmessage = (event) => {
@@ -72,6 +88,7 @@ const Classroom = () => {
     };
 
     eventSource.onerror = (error) => {
+      // Don't toast SSE errors - log only
       console.error("SSE connection error:", error);
       // Reconnect after 3 seconds
       setTimeout(() => {
@@ -88,7 +105,14 @@ const Classroom = () => {
   const handleRoomStatusUpdate = (updateData) => {
     setClassrooms((prev) =>
       prev.map((room) => {
-        if (room._id === updateData.roomId) {
+        // Update by roomNumber (roomId in SSE is roomNumber)
+        const roomNum = parseInt(room.roomNumber, 10);
+        const updateRoomNum = typeof updateData.roomId === "number" 
+          ? updateData.roomId 
+          : parseInt(updateData.roomId, 10);
+        
+        // Match by roomNumber (primary) or _id (fallback for backward compat)
+        if (roomNum === updateRoomNum || (updateData.roomId && room._id === updateData.roomId)) {
           return {
             ...room,
             occupancyStatus: updateData.status,
@@ -108,16 +132,21 @@ const Classroom = () => {
         const now = dayjs();
         const until = dayjs(room.occupiedUntil);
         const diff = until.diff(now, "second");
+        // Use roomNumber as key for consistency
+        const key = room.roomNumber || room._id;
 
         if (diff > 0) {
           const minutes = Math.floor(diff / 60);
           const seconds = diff % 60;
-          newCountdowns[room._id] = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+          newCountdowns[key] = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
         } else {
-          newCountdowns[room._id] = "00:00";
-          // Status should auto-update, but refresh if needed
+          newCountdowns[key] = "00:00";
+          // Status should auto-update via SSE, but refresh if needed (silently, no toast)
           if (room.occupancyStatus === "Occupied") {
-            getClassroomHandler();
+            // Silently refresh without showing errors
+            getClassroomHandler().catch((err) => {
+              console.warn("Background refresh failed (expected if room expired):", err);
+            });
           }
         }
       }
@@ -128,20 +157,30 @@ const Classroom = () => {
   const getClassroomHandler = async () => {
     setDataLoading(true);
     try {
-      const response = await axiosWrapper.get(`/classrooms`);
+      const response = await api.get(`/classrooms`);
       if (response.data.success) {
         setClassrooms(response.data.data);
         updateCountdowns();
       } else {
-        toast.error(response.data.message);
+        // Only toast on user-initiated actions, not background polling
+        if (!dataLoading) {
+          toast.error(response.data.message);
+        } else {
+          console.error("Error fetching classrooms:", response.data.message);
+        }
       }
     } catch (error) {
       if (error.response && error.response.status === 404) {
         setClassrooms([]);
         return;
       }
-      console.error(error);
-      toast.error(error.response?.data?.message || "Error fetching classrooms");
+      console.error("Error fetching classrooms:", error);
+      // Don't toast for background errors - log only
+      // Only toast if it's explicitly a user-initiated action
+      // Background polling/SSE errors should not show toasts
+      if (error.response?.data?.message) {
+        console.error("Error message:", error.response.data.message);
+      }
     } finally {
       setDataLoading(false);
     }
@@ -186,28 +225,37 @@ const Classroom = () => {
     setSelectedClassroomId(id);
   };
 
-  const clearOccupancyHandler = async (id) => {
+  const clearOccupancyHandler = async (roomNumber) => {
     setIsClearOccupancyOpen(true);
-    setSelectedClassroomId(id);
+    setSelectedRoomNumber(roomNumber);
   };
 
   const confirmClearOccupancy = async () => {
+    if (!selectedRoomNumber) {
+      toast.error("No room selected");
+      return;
+    }
     try {
       toast.loading("Clearing occupancy");
-      const response = await axiosWrapper.delete(
-        `/rooms/${selectedClassroomId}/occupancy`
+      const response = await api.delete(
+        `/rooms/${selectedRoomNumber}/occupancy`
       );
       toast.dismiss();
       if (response.data.success) {
         toast.success("Room occupancy cleared successfully");
         setIsClearOccupancyOpen(false);
+        setSelectedRoomNumber(null);
         getClassroomHandler();
       } else {
         toast.error(response.data.message);
       }
     } catch (error) {
       toast.dismiss();
-      toast.error(error.response?.data?.message || "Error clearing occupancy");
+      if (error.response?.status === 404) {
+        toastOnce(`room-not-found-${selectedRoomNumber}`, `Room ${selectedRoomNumber} not found`);
+      } else {
+        toast.error(error.response?.data?.message || "Error clearing occupancy");
+      }
     }
   };
 
@@ -274,35 +322,66 @@ const Classroom = () => {
         <CustomButton
           onClick={async () => {
             try {
-              const response = await axiosWrapper.get(
-                `/rooms/qr/bulk?from=401&to=412`,
-                {
-                  responseType: "blob",
-                }
-              );
-
-              // Create blob URL and download
-              const blob = new Blob([response.data], {
-                type: "application/zip",
+              toast.loading("Generating QR codes...");
+              const resp = await api.get("/rooms/qr/bulk", {
+                params: { from: 401, to: 412 },
+                responseType: "blob",
               });
-              const url = window.URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = "room-qrs-401-412.zip";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(url);
-              toast.success("QR codes downloaded successfully!");
+
+              // Check if response is a blob
+              if (resp.data instanceof Blob) {
+                // Check content type
+                const contentType = resp.headers["content-type"] || resp.data.type;
+                
+                if (contentType && contentType.includes("application/zip")) {
+                  // Create blob URL and download
+                  const url = URL.createObjectURL(resp.data);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "room-qrs.zip";
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                  toast.dismiss();
+                  toast.success("QR codes downloaded successfully!");
+                } else {
+                  // Might be an error JSON in blob format
+                  const text = await resp.data.text();
+                  try {
+                    const errorData = JSON.parse(text);
+                    toast.dismiss();
+                    toast.error(errorData.message || "Failed to download QR codes");
+                  } catch {
+                    toast.dismiss();
+                    toast.error("Failed to download QR codes: Invalid response format");
+                  }
+                }
+              } else {
+                toast.dismiss();
+                toast.error("Failed to download QR codes: Invalid response");
+              }
             } catch (error) {
               console.error("Download QR error:", error);
-              if (error.response?.status === 401) {
-                toast.error("Login as admin to download QR codes");
+              toast.dismiss();
+              
+              // Handle blob error responses
+              if (error.response?.data instanceof Blob) {
+                try {
+                  const text = await error.response.data.text();
+                  const errorData = JSON.parse(text);
+                  toastOnce("qr-download-error", errorData.message || "Failed to download QR codes");
+                } catch {
+                  toastOnce("qr-download-error", "Failed to download QR codes");
+                }
+              } else if (error.response?.status === 401 || error.response?.status === 403) {
+                toastOnce("qr-download-auth", "Login as admin to download QR codes");
+              } else if (error.response?.status === 404) {
+                toastOnce("qr-download-not-found", error.response.data?.message || "Rooms not found. Please run the classroom seeder first.");
+              } else if (error.response?.data?.message) {
+                toastOnce("qr-download-error", error.response.data.message);
               } else {
-                toast.error(
-                  error.response?.data?.message ||
-                    "Failed to download QR codes"
-                );
+                toastOnce("qr-download-error", "Failed to download QR codes. Please try again.");
               }
             }
           }}
@@ -466,7 +545,7 @@ const Classroom = () => {
                         </span>
                         {item.occupancyStatus === "Occupied" && item.occupiedUntil && (
                           <span className="text-xs text-gray-600 font-mono">
-                            {countdowns[item._id] || "00:00"}
+                            {countdowns[item.roomNumber] || countdowns[item._id] || "00:00"}
                           </span>
                         )}
                       </div>
@@ -499,7 +578,7 @@ const Classroom = () => {
                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                           <div className="py-1">
                             <button
-                              onClick={() => clearOccupancyHandler(item._id)}
+                              onClick={() => clearOccupancyHandler(item.roomNumber)}
                               className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                             >
                               Force Clear Occupancy

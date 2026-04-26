@@ -1,5 +1,5 @@
 const Classroom = require("./models/classroom.model");
-const connectToMongo = require("./database/db");
+const connectToMongo = require("./Database/db");
 const mongoose = require("mongoose");
 
 const seedClassrooms = async () => {

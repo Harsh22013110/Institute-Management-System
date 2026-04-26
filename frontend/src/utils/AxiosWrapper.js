@@ -5,7 +5,7 @@ const baseURL = baseApiURL();
 
 const axiosWrapper = axios.create({
   baseURL: baseURL,
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // 30 second timeout (increased for LAN connections)
   withCredentials: true, // Enable cookies
   headers: {
     "Content-Type": "application/json",

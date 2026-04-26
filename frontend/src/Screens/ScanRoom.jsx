@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import axiosWrapper from "../utils/AxiosWrapper";
+import api from "../api";
 import CustomButton from "../components/CustomButton";
 import Loading from "../components/Loading";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import duration from "dayjs/plugin/duration";
 
 dayjs.extend(relativeTime);
+dayjs.extend(duration);
 
 const ScanRoom = () => {
   const [searchParams] = useSearchParams();
@@ -19,19 +21,34 @@ const ScanRoom = () => {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const userToken = localStorage.getItem("userToken");
 
   useEffect(() => {
-    if (!userToken) {
-      // Redirect to login, then come back
-      const returnUrl = `/scan/room?roomId=${roomId}&token=${token}`;
-      localStorage.setItem("returnUrl", returnUrl);
-      navigate("/");
-      return;
-    }
+    // Check if user is logged in by trying to access a protected endpoint
+    // If not logged in, redirect to login
+    const checkAuth = async () => {
+      try {
+        // Try to get classrooms to verify auth
+        await api.get("/classrooms");
+        validateAndLoadRoom();
+      } catch (error) {
+        if (error.response?.status === 401) {
+          // Not logged in, redirect to login
+          const returnUrl = `/scan/room?roomId=${roomId}&token=${token}`;
+          localStorage.setItem("returnUrl", returnUrl);
+          navigate("/");
+        } else {
+          validateAndLoadRoom();
+        }
+      }
+    };
 
-    validateAndLoadRoom();
-  }, [roomId, token, userToken]);
+    if (roomId && token) {
+      checkAuth();
+    } else {
+      toast.error("Invalid QR code. Missing room ID or token.");
+      setLoading(false);
+    }
+  }, [roomId, token, navigate]);
 
   useEffect(() => {
     if (scanResult?.expiresAt) {
@@ -62,13 +79,24 @@ const ScanRoom = () => {
     }
 
     try {
-      // Verify token and get room info
-      const response = await axiosWrapper.get(`/classroom/${roomId}`);
-
-      if (response.data.success) {
-        setRoomData(response.data.data);
+      // roomId from query string is the roomNumber (e.g., "401")
+      // Get all classrooms and find the one matching this roomNumber
+      const response = await api.get("/classrooms");
+      const rooms = response.data.data || [];
+      
+      // Match by roomNumber (primary identifier for occupancy/scan endpoints)
+      const roomIdNum = parseInt(roomId, 10);
+      const room = rooms.find((r) => {
+        const rNum = parseInt(r.roomNumber, 10);
+        return rNum === roomIdNum || r.roomNumber === roomId.toString();
+      });
+      
+      if (room) {
+        setRoomData(room);
+        console.log(`Found room: ${room.roomNumber}`);
       } else {
-        toast.error("Room not found or invalid QR code");
+        console.error(`Room not found. Looking for roomNumber: ${roomId}, Available rooms:`, rooms.map(r => r.roomNumber));
+        toast.error(`Room ${roomId} not found or invalid QR code`);
       }
     } catch (error) {
       console.error("Error validating room:", error);
@@ -91,9 +119,10 @@ const ScanRoom = () => {
 
     setScanning(true);
     try {
-      const response = await axiosWrapper.post(
-        `/rooms/${roomId}/scan?token=${encodeURIComponent(token)}`,
-        {}
+      const response = await api.post(
+        `/rooms/${roomId}/scan`,
+        null,
+        { params: { token } }
       );
 
       if (response.data.success) {
@@ -105,7 +134,10 @@ const ScanRoom = () => {
     } catch (error) {
       console.error("Scan error:", error);
       if (error.response?.status === 401) {
-        toast.error("Invalid or mismatched QR token");
+        toast.error("Please login to continue");
+        navigate("/");
+      } else if (error.response?.status === 400) {
+        toast.error(error.response.data.message || "Invalid or mismatched QR token");
       } else if (error.response?.status === 429) {
         toast.error("Rate limit exceeded. Please wait a moment.");
       } else {
@@ -238,4 +270,3 @@ const ScanRoom = () => {
 };
 
 export default ScanRoom;
-

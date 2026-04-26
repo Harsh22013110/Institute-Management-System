@@ -47,8 +47,12 @@ const ViewMarks = () => {
     fetchMarks(semester);
   };
 
-  const midTermMarks = marks.filter((mark) => mark.examId.examType === "mid");
-  const endTermMarks = marks.filter((mark) => mark.examId.examType === "end");
+  const midTermMarks = marks.filter(
+    (mark) => mark.examId?.examType === "mid"
+  );
+  const endTermMarks = marks.filter(
+    (mark) => mark.examId?.examType === "end"
+  );
 
   return (
     <div className="w-full mx-auto mt-10 flex justify-center items-start flex-col mb-10">
@@ -85,10 +89,10 @@ const ViewMarks = () => {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-medium text-gray-800">
-                        {mark.subjectId.name}
+                        {mark.subjectId?.name || "Unknown subject"}
                       </p>
                       <p className="text-sm text-gray-500">
-                        {mark.examId.name}
+                        {mark.examId?.name || "Unknown exam"}
                       </p>
                     </div>
                     <div className="text-right">
@@ -96,7 +100,7 @@ const ViewMarks = () => {
                         {mark.marksObtained}
                       </p>
                       <p className="text-sm text-gray-500">
-                        out of {mark.examId.totalMarks}
+                        out of {mark.examId?.totalMarks ?? "-"}
                       </p>
                     </div>
                   </div>
@@ -122,10 +126,10 @@ const ViewMarks = () => {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-medium text-gray-800">
-                        {mark.subjectId.name}
+                        {mark.subjectId?.name || "Unknown subject"}
                       </p>
                       <p className="text-sm text-gray-500">
-                        {mark.examId.name}
+                        {mark.examId?.name || "Unknown exam"}
                       </p>
                     </div>
                     <div className="text-right">
@@ -133,7 +137,7 @@ const ViewMarks = () => {
                         {mark.marksObtained}
                       </p>
                       <p className="text-sm text-gray-500">
-                        out of {mark.examId.totalMarks}
+                        out of {mark.examId?.totalMarks ?? "-"}
                       </p>
                     </div>
                   </div>
