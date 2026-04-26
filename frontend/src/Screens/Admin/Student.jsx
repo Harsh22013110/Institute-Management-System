@@ -25,6 +25,9 @@ const Student = () => {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [file, setFile] = useState(null);
+  const [importFile, setImportFile] = useState(null);
+  const [importSummary, setImportSummary] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const userToken = localStorage.getItem("userToken");
 
@@ -223,6 +226,36 @@ const Student = () => {
     }
   };
 
+  const importStudentsHandler = async () => {
+    if (!importFile) {
+      toast.error("Please select an Excel/CSV file");
+      return;
+    }
+    try {
+      toast.loading("Importing students...");
+      const form = new FormData();
+      form.append("file", importFile);
+
+      const response = await axiosWrapper.post("/student/import", form, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${userToken}`,
+        },
+      });
+
+      toast.dismiss();
+      if (response.data.success) {
+        toast.success("Students imported");
+        setImportSummary(response.data.data);
+      } else {
+        toast.error(response.data.message || "Import failed");
+      }
+    } catch (error) {
+      toast.dismiss();
+      toast.error(error.response?.data?.message || "Import failed");
+    }
+  };
+
   const deleteStudentHandler = (id) => {
     setIsDeleteConfirmOpen(true);
     setSelectedStudentId(id);
@@ -320,9 +353,14 @@ const Student = () => {
       <div className="flex justify-between items-center w-full">
         <Heading title="Student Management" />
         {branches.length > 0 && (
-          <CustomButton onClick={() => setShowAddForm(true)}>
-            <IoMdAdd className="text-2xl" />
-          </CustomButton>
+          <div className="flex gap-3">
+            <CustomButton onClick={() => setShowImportModal(true)} variant="secondary">
+              Import (Excel/CSV)
+            </CustomButton>
+            <CustomButton onClick={() => setShowAddForm(true)}>
+              <IoMdAdd className="text-2xl" />
+            </CustomButton>
+          </div>
         )}
       </div>
 
@@ -853,6 +891,76 @@ const Student = () => {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 w-[90%] max-w-2xl max-h-[90vh] overflow-y-auto relative">
+            <button
+              onClick={() => {
+                setShowImportModal(false);
+                setImportFile(null);
+                setImportSummary(null);
+              }}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <IoMdClose className="text-2xl" />
+            </button>
+
+            <h2 className="text-2xl font-semibold mb-4">Import Students</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload an Excel/CSV with columns like: Enrollment_No, Student_Name, Branch, Semester or Year.
+              Imported students can login with password <span className="font-bold">student123</span>.
+            </p>
+
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            <div className="mt-6 flex justify-end gap-3">
+              <CustomButton
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportSummary(null);
+                }}
+              >
+                Cancel
+              </CustomButton>
+              <CustomButton type="button" variant="primary" onClick={importStudentsHandler}>
+                Import
+              </CustomButton>
+            </div>
+
+            {importSummary && (
+              <div className="mt-6 text-sm">
+                <p>
+                  Processed: <span className="font-bold">{importSummary.processed}</span> | Created:{" "}
+                  <span className="font-bold">{importSummary.created}</span> | Updated:{" "}
+                  <span className="font-bold">{importSummary.updated}</span> | Skipped:{" "}
+                  <span className="font-bold">{importSummary.skipped}</span>
+                </p>
+                {importSummary.errors?.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-red-600">
+                      View errors ({importSummary.errors.length})
+                    </summary>
+                    <ul className="list-disc list-inside mt-1 text-xs text-red-500 max-h-40 overflow-y-auto">
+                      {importSummary.errors.map((err, idx) => (
+                        <li key={idx}>{err}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

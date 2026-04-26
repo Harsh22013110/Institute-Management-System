@@ -6,6 +6,80 @@ const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
 const fs = require("fs");
 const path = require("path");
+const xlsx = require("xlsx");
+const Branch = require("../../models/branch.model");
+
+function normalizeHeader(header) {
+  if (!header) return "";
+  return String(header).trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+function getCellValue(row, possibleHeaders) {
+  const normalized = {};
+  for (const key of Object.keys(row)) {
+    normalized[normalizeHeader(key)] = row[key];
+  }
+  for (const header of possibleHeaders) {
+    const norm = normalizeHeader(header);
+    if (Object.prototype.hasOwnProperty.call(normalized, norm)) {
+      return normalized[norm];
+    }
+  }
+  return undefined;
+}
+
+function toCleanString(value) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
+function parseEnrollmentNumber(value) {
+  const str = toCleanString(value);
+  if (!str) return null;
+  if (/^\d+$/.test(str)) return Number(str);
+  const match = str.match(/\d+/);
+  if (!match) return null;
+  return Number(match[0]);
+}
+
+function parseYear(value) {
+  const str = toCleanString(value);
+  if (!str) return 0;
+  const match = str.match(/\d+/);
+  if (!match) return 0;
+  const num = Number(match[0]);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function yearToSemesterStart(yearNumber) {
+  if (!yearNumber || !Number.isFinite(yearNumber)) return 1;
+  const sem = (yearNumber - 1) * 2 + 1;
+  return sem > 0 ? sem : 1;
+}
+
+async function getOrCreateBranchByName(branchName) {
+  const name = toCleanString(branchName);
+  if (!name) return null;
+
+  let branch = await Branch.findOne({ name });
+  if (branch) return branch;
+
+  const code =
+    name
+      .split(/\s+/)
+      .map((w) => w[0]?.toUpperCase() || "")
+      .join("") || "GEN";
+
+  // Ensure branchId uniqueness
+  let branchId = code;
+  const existingById = await Branch.findOne({ branchId });
+  if (existingById) {
+    branchId = `${code}-${Date.now()}`;
+  }
+
+  branch = await Branch.create({ branchId, name });
+  return branch;
+}
 
 const loginStudentController = async (req, res) => {
   try {
@@ -366,6 +440,137 @@ const searchStudentsController = async (req, res) => {
   }
 };
 
+// POST /api/student/import  (Excel/CSV bulk import)
+const importStudentsController = async (req, res) => {
+  if (!req.file) {
+    return ApiResponse.badRequest("Excel/CSV file is required").send(res);
+  }
+
+  const filePath = req.file.path;
+
+  try {
+    const workbook = xlsx.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json(sheet, { defval: "" });
+
+    let processed = 0;
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const [index, row] of rows.entries()) {
+      processed += 1;
+
+      const enrollmentRaw = getCellValue(row, [
+        "Enrollment_No",
+        "EnrollmentNo",
+        "enrollment_no",
+        "enrollmentno",
+        "Enrollment Number",
+        "enrollment_number",
+      ]);
+      const enrollmentNo = parseEnrollmentNumber(enrollmentRaw);
+
+      if (!enrollmentNo) {
+        skipped += 1;
+        errors.push(`Row ${index + 2}: Missing/invalid Enrollment_No`);
+        continue;
+      }
+
+      const fullName = toCleanString(
+        getCellValue(row, ["Student_Name", "student_name", "Name", "name"])
+      );
+      const nameParts = fullName ? fullName.split(/\s+/) : [];
+      const firstName = nameParts[0] || "Imported";
+      const lastName =
+        nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Student";
+
+      const branchName = toCleanString(getCellValue(row, ["Branch", "branch"]));
+      const branchDoc = await getOrCreateBranchByName(branchName);
+
+      const semesterRaw = getCellValue(row, [
+        "Semester",
+        "semester",
+        "Sem",
+        "sem",
+      ]);
+      const yearRaw = getCellValue(row, ["Year", "year"]);
+
+      const semesterParsed = Number(toCleanString(semesterRaw));
+      const yearParsed = parseYear(yearRaw);
+      const semester = Number.isFinite(semesterParsed) && semesterParsed > 0
+        ? semesterParsed
+        : yearToSemesterStart(yearParsed);
+
+      const emailFromFile = toCleanString(getCellValue(row, ["Email", "email"]));
+      const email = emailFromFile || `${enrollmentNo}@gmail.com`;
+
+      const phoneFromFile = toCleanString(getCellValue(row, ["Phone", "phone"]));
+      const phone =
+        /^\d{10}$/.test(phoneFromFile) ? phoneFromFile : "9999999999";
+
+      const existing = await studentDetails.findOne({ enrollmentNo });
+
+      const baseData = {
+        enrollmentNo,
+        firstName,
+        middleName: "NA",
+        lastName,
+        email,
+        phone,
+        semester,
+        branchId: branchDoc ? branchDoc._id : undefined,
+        gender: "other",
+        dob: new Date("2004-01-01"),
+        address: "Imported from sheet",
+        city: "City",
+        state: "State",
+        pincode: "000000",
+        country: "Country",
+        profile: "",
+        status: "active",
+        bloodGroup: "O+",
+        emergencyContact: {
+          name: "Guardian",
+          relationship: "Parent",
+          phone: "9999999999",
+        },
+      };
+
+      if (existing) {
+        await studentDetails.findByIdAndUpdate(existing._id, baseData, {
+          new: true,
+        });
+        updated += 1;
+      } else {
+        await studentDetails.create({
+          ...baseData,
+          password: "student123",
+        });
+        created += 1;
+      }
+    }
+
+    return ApiResponse.success(
+      { processed, created, updated, skipped, errors },
+      "Students imported successfully"
+    ).send(res);
+  } catch (error) {
+    console.error("Import Students Error:", error);
+    return ApiResponse.internalServerError().send(res);
+  } finally {
+    try {
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+};
+
 const updateLoggedInPasswordController = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -423,4 +628,5 @@ module.exports = {
   updatePasswordHandler,
   searchStudentsController,
   updateLoggedInPasswordController,
+  importStudentsController,
 };

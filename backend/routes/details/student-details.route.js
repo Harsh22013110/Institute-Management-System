@@ -11,11 +11,13 @@ const {
   updatePasswordHandler,
   searchStudentsController,
   updateLoggedInPasswordController,
+  importStudentsController,
 } = require("../../controllers/details/student-details.controller");
 const upload = require("../../middlewares/multer.middleware");
 const auth = require("../../middlewares/auth.middleware");
 
 router.post("/register", upload.single("file"), registerStudentController);
+router.post("/import", auth, upload.single("file"), importStudentsController);
 router.post("/login", loginStudentController);
 router.get("/my-details", auth, getMyDetailsController);
 

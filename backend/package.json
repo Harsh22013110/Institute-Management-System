@@ -7,7 +7,9 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js",
-    "seed:undo": "node seed.js --undo"
+    "seed:undo": "node seed.js --undo",
+    "seed:entc-sem8": "node electronics-sem8-seeder.js",
+    "seed:entc-sem8:reset": "node electronics-sem8-seeder.js --reset"
   },
   "author": "Krish Jotaniya",
   "license": "ISC",
